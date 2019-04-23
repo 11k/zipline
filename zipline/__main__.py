@@ -274,6 +274,7 @@ def run(ctx,
         local_namespace=local_namespace,
         environ=os.environ,
         blotter=blotter,
+        additional_loaders=None
     )
 
     if output == '-':

@@ -73,7 +73,8 @@ def _run(handle_data,
          metrics_set,
          local_namespace,
          environ,
-         blotter):
+         blotter,
+         additional_loaders):
     """Run a backtest for the given algorithm.
 
     This is shared between the cli and :func:`zipline.run_algo`.
@@ -177,6 +178,12 @@ def _run(handle_data,
         def choose_loader(column):
             if column in USEquityPricing.columns:
                 return pipeline_loader
+
+            if additional_loaders is not None:
+                loader = additional_loaders.get(column)
+                if loader is not None:
+                    return loader
+
             raise ValueError(
                 "No PipelineLoader registered for column %s." % column
             )
@@ -309,7 +316,8 @@ def run_algorithm(start,
                   extensions=(),
                   strict_extensions=True,
                   environ=os.environ,
-                  blotter='default'):
+                  blotter='default',
+                  additional_loaders=None):
     """
     Run a trading algorithm.
 
@@ -375,6 +383,8 @@ def run_algorithm(start,
         ``zipline.extensions.register`` and call it with no parameters.
         Default is a :class:`zipline.finance.blotter.SimulationBlotter` that
         never cancels orders.
+    additional_loaders : mapping[Column -> PipelineLoader] additional loaders
+        to use in ``choose_loader``.
 
     Returns
     -------
@@ -428,4 +438,5 @@ def run_algorithm(start,
         local_namespace=False,
         environ=environ,
         blotter=blotter,
+        additional_loaders=additional_loaders
     )
