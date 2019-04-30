@@ -18,7 +18,7 @@ logger = Logger(__name__)
 logger.handlers.append(handler)
 
 
-def csvdir_equities(tframes=None, csvdir=None):
+def csvdir_equities(data_freq, tframes=None, csvdir=None):
     """
     Generate an ingest function for custom data bundle
     This function can be used in ~/.zipline/extension.py
@@ -27,6 +27,9 @@ def csvdir_equities(tframes=None, csvdir=None):
 
     Parameters
     ----------
+    data_freq: string
+        The data frequency mode this dataset will be used with,
+        either 'daily' or 'minute'
     tframes: tuple, optional
         The data time frames, supported timeframes: 'daily' and 'minute'
     csvdir : string, optional, default: CSVDIR environment variable
@@ -49,11 +52,11 @@ def csvdir_equities(tframes=None, csvdir=None):
     .. code-block:: python
        from zipline.data.bundles import csvdir_equities, register
        register('custom-csvdir-bundle',
-                csvdir_equities(["daily", "minute"],
+                csvdir_equities('daily', ["daily", "minute"],
                 '/full/path/to/the/csvdir/directory'))
     """
 
-    return CSVDIRBundle(tframes, csvdir).ingest
+    return CSVDIRBundle(data_freq, tframes, csvdir).ingest
 
 
 class CSVDIRBundle:
@@ -62,7 +65,8 @@ class CSVDIRBundle:
     list of time frames and a path to the csvdir directory
     """
 
-    def __init__(self, tframes=None, csvdir=None):
+    def __init__(self, data_freq, tframes=None, csvdir=None):
+        self.data_freq = data_freq
         self.tframes = tframes
         self.csvdir = csvdir
 
@@ -90,6 +94,7 @@ class CSVDIRBundle:
                       cache,
                       show_progress,
                       output_dir,
+                      self.data_freq,
                       self.tframes,
                       self.csvdir)
 
@@ -106,6 +111,7 @@ def csvdir_bundle(environ,
                   cache,
                   show_progress,
                   output_dir,
+                  data_freq,
                   tframes=None,
                   csvdir=None):
     """
@@ -125,6 +131,10 @@ def csvdir_bundle(environ,
         if not tframes:
             raise ValueError("'daily' and 'minute' directories "
                              "not found in '%s'" % csvdir)
+
+    if data_freq not in ["daily", "minute"]:
+        raise ValueError("must specify a data frequency of either 'daily' "
+                         "or 'minute', '%s' is invalid" % data_freq)
 
     divs_splits = {'divs': DataFrame(columns=['sid', 'amount',
                                               'ex_date', 'record_date',
@@ -160,12 +170,14 @@ def csvdir_bundle(environ,
         # are all equities and thus can use the NYSE calendar.
         metadata['exchange'] = "CSVDIR"
 
-        asset_db_writer.write(equities=metadata)
+        # Only create metadata tables for the target data frequency.
+        if tframe == data_freq:
+            asset_db_writer.write(equities=metadata)
 
-        divs_splits['divs']['sid'] = divs_splits['divs']['sid'].astype(int)
-        divs_splits['splits']['sid'] = divs_splits['splits']['sid'].astype(int)
-        adjustment_writer.write(splits=divs_splits['splits'],
-                                dividends=divs_splits['divs'])
+            divs_splits['divs']['sid'] = divs_splits['divs']['sid'].astype(int)
+            divs_splits['splits']['sid'] = divs_splits['splits']['sid'].astype(int)
+            adjustment_writer.write(splits=divs_splits['splits'],
+                                    dividends=divs_splits['divs'])
 
 
 def _pricing_iter(csvdir, symbols, metadata, divs_splits, show_progress):
